@@ -138,19 +138,34 @@ export default function LeitorClient({ partes }: Props) {
     )
   }
 
-  function scrollParaParagrafo(docId: string) {
-    setSidebarAberta(false)
-    const el = document.querySelector('[data-doc-id="' + docId + '"]')
-    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return }
-    fetch('/api/paragrafo?doc_id=' + docId).then(r => r.json()).then(data => {
-      if (data.paragrafo) {
-        setParagrafos(prev => prev.find(p => p.doc_id === docId) ? prev : [...prev, data.paragrafo])
-        setTimeout(() => {
-          document.querySelector('[data-doc-id="' + docId + '"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        }, 150)
-      }
-    })
+function scrollParaParagrafo(docId: string) {
+  setSidebarAberta(false)
+  const el = document.querySelector('[data-doc-id="' + docId + '"]')
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    return
   }
+
+  // Parágrafo não carregado — buscar e inserir na ordem correta
+  fetch('/api/paragrafo?doc_id=' + docId).then(r => r.json()).then(data => {
+    if (data.paragrafo) {
+      const numAlvo = parseInt(docId.split('-')[1])
+      setParagrafos(prev => {
+        if (prev.find(p => p.doc_id === docId)) return prev
+        // Inserir na posição correta por número
+        const idx = prev.findIndex(p => parseInt(p.doc_id.split('-')[1]) > numAlvo)
+        if (idx === -1) return [...prev, data.paragrafo]
+        const novo = [...prev]
+        novo.splice(idx, 0, data.paragrafo)
+        return novo
+      })
+      setTimeout(() => {
+        document.querySelector('[data-doc-id="' + docId + '"]')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 150)
+    }
+  })
+}
 
   useEffect(() => {
     const primeira = Object.keys(partes)[0]
