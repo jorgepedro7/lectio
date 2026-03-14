@@ -19,6 +19,7 @@ interface BuscaResultado {
 
 interface Props {
   onBuscar: (query: string, resultados: BuscaResultado) => void
+  isMobile?: boolean
 }
 
 export function Busca({ onBuscar }: Props) {

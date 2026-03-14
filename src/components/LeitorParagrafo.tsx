@@ -74,10 +74,10 @@ export default function LeitorParagrafo({ paragrafo }: Props) {
 
   return (
     <div style={{ display: 'flex', gap: 0 }}>
-      <article style={{ flex: 1, maxWidth: 680, padding: '32px 40px' }}>
+      <article style={{ flex: 1, maxWidth: 680, padding: 'clamp(16px, 4vw, 40px)' }}>
         <header style={{ marginBottom: 24 }}>
           {paragrafo.metadata.parte && (
-            <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#888', marginBottom: 4 }}>
+            <p style={{ fontSize: 'clamp(16px, 2.5vw, 18px)', lineHeight: 1.8, letterSpacing: '0.01em' }}>
               {paragrafo.metadata.parte}
             </p>
           )}

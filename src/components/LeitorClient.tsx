@@ -44,6 +44,8 @@ export default function LeitorClient({ partes }: Props) {
   const [queryAtual, setQueryAtual] = useState('')
   const [resultados, setResultados] = useState<BuscaResultado>({ catecismo: [], canonico: [], totalCCC: 0, totalCIC: 0, total: 0, offset: 0 })
   const [paraDestaque, setParagrafoDestaque] = useState<string | null>(null)
+  const [sidebarAberta, setSidebarAberta] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
 
   const sidebarRef = useRef<HTMLDivElement>(null)
   const sentinelaRef = useRef<HTMLDivElement>(null)
@@ -56,6 +58,13 @@ export default function LeitorClient({ partes }: Props) {
 
   const itens = partes[parteAtual] || []
   const todosResultados = [...resultados.catecismo, ...resultados.canonico]
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const carregarLote = useCallback(async (parteDB: string, off: number) => {
     if (carregandoRef.current || !temMaisRef.current) return
@@ -88,22 +97,17 @@ export default function LeitorClient({ partes }: Props) {
     setTemMais(true)
     setItemVisivel(null)
     setModoBusca(false)
+    setSidebarAberta(false)
     window.scrollTo({ top: 0 })
     carregarLote(parteDB, 0)
   }
 
   function handleBusca(query: string, res: BuscaResultado) {
     setQueryAtual(query)
-    if (res.offset === 0) {
-      setResultados(res)
-    } else {
-      setResultados(prev => ({
-        ...res,
-        catecismo: [...prev.catecismo, ...res.catecismo],
-        canonico: [...prev.canonico, ...res.canonico],
-      }))
-    }
+    if (res.offset === 0) setResultados(res)
+    else setResultados(prev => ({ ...res, catecismo: [...prev.catecismo, ...res.catecismo], canonico: [...prev.canonico, ...res.canonico] }))
     setModoBusca(true)
+    setSidebarAberta(false)
     if (res.offset === 0) window.scrollTo({ top: 0 })
   }
 
@@ -135,6 +139,7 @@ export default function LeitorClient({ partes }: Props) {
   }
 
   function scrollParaParagrafo(docId: string) {
+    setSidebarAberta(false)
     const el = document.querySelector('[data-doc-id="' + docId + '"]')
     if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return }
     fetch('/api/paragrafo?doc_id=' + docId).then(r => r.json()).then(data => {
@@ -182,51 +187,82 @@ export default function LeitorClient({ partes }: Props) {
     btn?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [itemVisivel])
 
+  const topOffset = modoBusca ? 49 : (isMobile ? 97 : 97)
+
   return (
     <main style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
 
       {/* Header */}
-      <header style={{ background: '#FDFCF9', borderBottom: '1px solid #E0DDD6', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <header style={{ background: 'var(--bg-primary)', borderBottom: '1px solid var(--border)', padding: isMobile ? '10px 16px' : '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 20, gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          {/* Botão menu mobile */}
+          {isMobile && !modoBusca && (
+            <button onClick={() => setSidebarAberta(v => !v)}
+              style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', fontSize: 16, color: 'var(--text-muted)', flexShrink: 0 }}>
+              ☰
+            </button>
+          )}
           {modoBusca ? (
             <>
-              <button onClick={sairBusca} style={{ background: 'none', border: 'none', color: '#AAA', fontSize: 13, fontFamily: 'var(--font-serif)', cursor: 'pointer' }}>← leitura</button>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--gold)' }}>"{queryAtual}" — {resultados.totalCCC + resultados.totalCIC} resultado{resultados.total !== 1 ? 's' : ''}</span>
+              <button onClick={sairBusca} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 13, fontFamily: 'var(--font-serif)', cursor: 'pointer', whiteSpace: 'nowrap' }}>← leitura</button>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: isMobile ? 11 : 13, color: 'var(--gold)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                "{queryAtual}" — {resultados.totalCCC + resultados.totalCIC} resultados
+              </span>
             </>
           ) : (
             <>
-              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 500, letterSpacing: '0.08em' }}>Lectio</h1>
-              <span style={{ fontSize: 13, color: '#888', fontStyle: 'italic' }}>Catecismo da Igreja Católica</span>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 500, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>Lectio</h1>
+              {!isMobile && <span style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>Catecismo da Igreja Católica</span>}
             </>
           )}
         </div>
-        <Busca onBuscar={handleBusca} />
+        <Busca onBuscar={handleBusca} isMobile={isMobile} />
       </header>
 
-      {/* Nav partes — só no modo leitura */}
+      {/* Nav partes */}
       {!modoBusca && (
-        <nav style={{ background: '#FDFCF9', borderBottom: '1px solid #E0DDD6', padding: '0 24px', display: 'flex', overflowX: 'auto', position: 'sticky', top: 49, zIndex: 19 }}>
+        <nav style={{ background: 'var(--bg-primary)', borderBottom: '1px solid var(--border)', padding: '0 16px', display: 'flex', overflowX: 'auto', position: 'sticky', top: 49, zIndex: 19, scrollbarWidth: 'none' }}>
           {Object.keys(partes).map(parte => (
-            <button key={parte} onClick={() => trocarParte(parte)} style={{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: parte === parteAtual ? '2px solid var(--gold)' : '2px solid transparent', fontSize: 13, color: parte === parteAtual ? '#1A1A1A' : '#888', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--font-serif)' }}>
-              {parte}
+            <button key={parte} onClick={() => trocarParte(parte)} style={{ padding: isMobile ? '8px 12px' : '10px 16px', background: 'none', border: 'none', borderBottom: parte === parteAtual ? '2px solid var(--gold)' : '2px solid transparent', fontSize: isMobile ? 12 : 13, color: parte === parteAtual ? 'var(--text-primary)' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--font-serif)' }}>
+              {isMobile ? parte.replace('A Celebração do Mistério Cristão', 'Celebração').replace('A Profissão da Fé', 'Profissão').replace('A Vida em Cristo', 'Vida').replace('A Oração Cristã', 'Oração') : parte}
             </button>
           ))}
         </nav>
       )}
 
-      <div style={{ display: 'flex', flex: 1 }}>
+      <div style={{ display: 'flex', flex: 1, position: 'relative' }}>
+
+        {/* Overlay mobile */}
+        {isMobile && sidebarAberta && (
+          <div onClick={() => setSidebarAberta(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 29 }} />
+        )}
 
         {/* Sidebar */}
-        <aside ref={sidebarRef} style={{ width: 180, minWidth: 180, background: '#FDFCF9', borderRight: '1px solid #E0DDD6', position: 'sticky', top: modoBusca ? 49 : 97, height: modoBusca ? 'calc(100vh - 49px)' : 'calc(100vh - 97px)', overflowY: 'auto' }}>
-          <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#AAA', padding: '12px 16px 8px' }}>
+        <aside ref={sidebarRef} style={{
+          width: 180,
+          minWidth: 180,
+          background: 'var(--bg-primary)',
+          borderRight: '1px solid var(--border)',
+          position: isMobile ? 'fixed' : 'sticky',
+          top: isMobile ? 0 : topOffset,
+          left: 0,
+          height: isMobile ? '100vh' : `calc(100vh - ${topOffset}px)`,
+          overflowY: 'auto',
+          zIndex: isMobile ? 30 : 1,
+          transform: isMobile ? (sidebarAberta ? 'translateX(0)' : 'translateX(-100%)') : 'none',
+          transition: isMobile ? 'transform 0.25s ease' : 'none',
+          paddingTop: isMobile ? 60 : 0,
+        }}>
+          <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', padding: '12px 16px 8px' }}>
             {modoBusca ? todosResultados.length + ' resultados' : itens.length + ' parágrafos'}
           </p>
           {modoBusca ? (
             todosResultados.map(r => (
               <button key={r.doc_id}
                 onClick={() => { setParagrafoDestaque(r.doc_id); document.querySelector('[data-resultado-id="' + r.doc_id + '"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}
-                style={{ width: '100%', padding: '6px 16px', background: paraDestaque === r.doc_id ? '#F2EFE8' : 'none', border: 'none', borderLeft: paraDestaque === r.doc_id ? '2px solid var(--gold)' : '2px solid transparent', display: 'flex', alignItems: 'center', cursor: 'pointer', textAlign: 'left' }}>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: paraDestaque === r.doc_id ? 'var(--gold)' : '#BBB' }}>
+                style={{ width: '100%', padding: '6px 16px', background: paraDestaque === r.doc_id ? 'var(--bg-tertiary)' : 'none', border: 'none', borderLeft: paraDestaque === r.doc_id ? '2px solid var(--gold)' : '2px solid transparent', display: 'flex', alignItems: 'center', cursor: 'pointer', textAlign: 'left' }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: paraDestaque === r.doc_id ? 'var(--gold)' : 'var(--text-muted)' }}>
                   {r.doc_id.startsWith('CIC') ? r.doc_id.replace('CIC-can-', 'c.') : '§' + r.metadata.id}
                 </span>
               </button>
@@ -234,97 +270,85 @@ export default function LeitorClient({ partes }: Props) {
           ) : (
             itens.map(item => (
               <button key={item.doc_id} data-sidebar-id={item.doc_id} onClick={() => scrollParaParagrafo(item.doc_id)}
-                style={{ width: '100%', padding: '6px 16px', background: itemVisivel === item.doc_id ? '#F2EFE8' : 'none', border: 'none', borderLeft: itemVisivel === item.doc_id ? '2px solid var(--gold)' : '2px solid transparent', display: 'flex', alignItems: 'center', cursor: 'pointer', textAlign: 'left' }}>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: itemVisivel === item.doc_id ? 'var(--gold)' : '#BBB' }}>§{item.num}</span>
+                style={{ width: '100%', padding: '6px 16px', background: itemVisivel === item.doc_id ? 'var(--bg-tertiary)' : 'none', border: 'none', borderLeft: itemVisivel === item.doc_id ? '2px solid var(--gold)' : '2px solid transparent', display: 'flex', alignItems: 'center', cursor: 'pointer', textAlign: 'left' }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: itemVisivel === item.doc_id ? 'var(--gold)' : 'var(--text-muted)' }}>§{item.num}</span>
               </button>
             ))
           )}
         </aside>
 
         {/* Conteúdo */}
-        <div style={{ flex: 1 }}>
-
-          {/* Modo busca */}
+        <div style={{ flex: 1, minWidth: 0 }}>
           {modoBusca && (
             <div>
-              {/* Resultados Catecismo */}
               {resultados.catecismo.length > 0 && (
                 <div>
-                  <div style={{ padding: '16px 40px 8px', borderBottom: '1px solid #F0EDE6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#AAA' }}>Catecismo</span>
+                  <div style={{ padding: '16px 24px 8px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Catecismo</span>
                     <span style={{ fontSize: 12, color: 'var(--gold)', background: '#D4B86A22', borderRadius: 4, padding: '2px 8px' }}>{resultados.catecismo.length} de {resultados.totalCCC}</span>
                   </div>
                   {resultados.catecismo.map(r => (
                     <div key={r.doc_id} data-resultado-id={r.doc_id}
-                      style={{ padding: '24px 40px', borderBottom: '1px solid #F0EDE6', background: paraDestaque === r.doc_id ? '#FFFEF9' : 'transparent', transition: 'background 0.3s', maxWidth: 760 }}>
-                      {r.metadata.parte && <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#AAA', marginBottom: 4 }}>{r.metadata.parte}</p>}
-                      <span style={{ fontFamily: 'var(--font-display)', fontSize: 22, color: 'var(--gold)', display: 'block', marginBottom: 12 }}>§{r.metadata.id}</span>
-                      <p style={{ fontSize: 17, lineHeight: 1.8 }} dangerouslySetInnerHTML={{ __html: destacarTexto(r.content, queryAtual) }} />
+                      style={{ padding: isMobile ? '20px 16px' : '24px 40px', borderBottom: '1px solid var(--border-light)', background: paraDestaque === r.doc_id ? '#FFFEF9' : 'transparent', transition: 'background 0.3s' }}>
+                      {r.metadata.parte && <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>{r.metadata.parte}</p>}
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: isMobile ? 18 : 22, color: 'var(--gold)', display: 'block', marginBottom: 12 }}>§{r.metadata.id}</span>
+                      <p style={{ fontSize: isMobile ? 16 : 17, lineHeight: 1.8 }} dangerouslySetInnerHTML={{ __html: destacarTexto(r.content, queryAtual) }} />
                     </div>
                   ))}
                   {resultados.catecismo.length < resultados.totalCCC && (
-                    <div style={{ padding: '20px 40px', borderBottom: '1px solid #F0EDE6', display: 'flex', alignItems: 'center', gap: 16 }}>
-                      <button onClick={verMaisCCC} style={{ background: 'none', border: '1px solid #E0DDD6', borderRadius: 6, padding: '8px 20px', fontSize: 13, color: '#555', fontFamily: 'var(--font-serif)', cursor: 'pointer' }}>
+                    <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                      <button onClick={verMaisCCC} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 20px', fontSize: 13, color: 'var(--text-secondary)', fontFamily: 'var(--font-serif)', cursor: 'pointer' }}>
                         ver mais {Math.min(50, resultados.totalCCC - resultados.catecismo.length)} de {resultados.totalCCC - resultados.catecismo.length} restantes
                       </button>
-                      <span style={{ fontSize: 12, color: '#AAA' }}>{resultados.catecismo.length} de {resultados.totalCCC} parágrafos</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{resultados.catecismo.length} de {resultados.totalCCC}</span>
                     </div>
                   )}
                 </div>
               )}
-
-              {/* Resultados Canônico */}
               {resultados.canonico.length > 0 && (
                 <div>
-                  <div style={{ padding: '16px 40px 8px', borderBottom: '1px solid #F0EDE6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#AAA' }}>Direito Canônico</span>
+                  <div style={{ padding: '16px 24px 8px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Direito Canônico</span>
                     <span style={{ fontSize: 12, color: '#8B6B8A', background: '#8B6B8A22', borderRadius: 4, padding: '2px 8px' }}>{resultados.canonico.length} de {resultados.totalCIC}</span>
                   </div>
                   {resultados.canonico.map(r => (
                     <div key={r.doc_id} data-resultado-id={r.doc_id}
-                      style={{ padding: '24px 40px', borderBottom: '1px solid #F0EDE6', maxWidth: 760 }}>
+                      style={{ padding: isMobile ? '20px 16px' : '24px 40px', borderBottom: '1px solid var(--border-light)' }}>
                       <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: '#8B6B8A', display: 'block', marginBottom: 12 }}>{r.doc_id.replace('CIC-can-', 'Cânon ')}</span>
-                      <p style={{ fontSize: 16, lineHeight: 1.8 }} dangerouslySetInnerHTML={{ __html: destacarTexto(r.content, queryAtual) }} />
+                      <p style={{ fontSize: isMobile ? 15 : 16, lineHeight: 1.8 }} dangerouslySetInnerHTML={{ __html: destacarTexto(r.content, queryAtual) }} />
                     </div>
                   ))}
                   {resultados.canonico.length < resultados.totalCIC && (
-                    <div style={{ padding: '20px 40px', display: 'flex', alignItems: 'center', gap: 16 }}>
-                      <button onClick={verMaisCIC} style={{ background: 'none', border: '1px solid #E0DDD6', borderRadius: 6, padding: '8px 20px', fontSize: 13, color: '#555', fontFamily: 'var(--font-serif)', cursor: 'pointer' }}>
+                    <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <button onClick={verMaisCIC} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 20px', fontSize: 13, color: 'var(--text-secondary)', fontFamily: 'var(--font-serif)', cursor: 'pointer' }}>
                         ver mais {Math.min(50, resultados.totalCIC - resultados.canonico.length)} de {resultados.totalCIC - resultados.canonico.length} restantes
                       </button>
-                      <span style={{ fontSize: 12, color: '#AAA' }}>{resultados.canonico.length} de {resultados.totalCIC} cânones</span>
                     </div>
                   )}
                 </div>
               )}
-
-              {/* Sem resultados */}
               {todosResultados.length === 0 && (
-                <div style={{ padding: '60px 40px', textAlign: 'center', color: '#AAA', fontStyle: 'italic' }}>
-                  Nenhum resultado encontrado.
-                </div>
+                <div style={{ padding: '60px 24px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>Nenhum resultado encontrado.</div>
               )}
             </div>
           )}
 
-          {/* Modo leitura */}
           {!modoBusca && (
             <>
               {carregando && paragrafos.length === 0 && (
-                <div style={{ padding: '40px', color: '#AAA', fontStyle: 'italic', fontSize: 15 }}>Carregando…</div>
+                <div style={{ padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>Carregando…</div>
               )}
               {paragrafos.map(p => (
-                <div key={p.doc_id} data-doc-id={p.doc_id} style={{ borderBottom: '1px solid #F0EDE6' }}>
+                <div key={p.doc_id} data-doc-id={p.doc_id} style={{ borderBottom: '1px solid var(--border-light)' }}>
                   <LeitorParagrafo paragrafo={p} />
                 </div>
               ))}
               <div ref={sentinelaRef} style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {carregando && paragrafos.length > 0 && <span style={{ fontSize: 13, color: '#AAA', fontStyle: 'italic' }}>Carregando mais…</span>}
-                {!temMais && paragrafos.length > 0 && <span style={{ fontSize: 13, color: '#CCC', fontStyle: 'italic' }}>Fim desta parte</span>}
+                {carregando && paragrafos.length > 0 && <span style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>Carregando mais…</span>}
+                {!temMais && paragrafos.length > 0 && <span style={{ fontSize: 13, color: 'var(--border)', fontStyle: 'italic' }}>Fim desta parte</span>}
               </div>
             </>
           )}
-
         </div>
       </div>
     </main>
