@@ -62,3 +62,27 @@ Por que este trecho bíblico fundamenta o que o Catecismo ensina aqui?`
     return NextResponse.json({ analise: 'Não foi possível gerar a análise.', cached: false })
   }
 }
+
+
+// Cliente público para leitura
+const sbPublic = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+// Cliente privilegiado para escrita — nunca exposto no browser
+const sbAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+// Leitura do cache — cliente público
+const { data: cache } = await sbPublic
+  .from('analises')
+  .select('analise')
+  .eq('doc_id', doc_id)
+  .eq('referencia', referencia)
+  .single()
+
+// Escrita do cache — cliente admin
+await sbAdmin.from('analises').insert({ doc_id, referencia, analise })
